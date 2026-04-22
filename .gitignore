@@ -27,6 +27,9 @@ go.work.sum
 # env file
 .env
 
+# Database (created on first run)
+memory.db
+
 # Editor/IDE
 # .idea/
 # .vscode/
