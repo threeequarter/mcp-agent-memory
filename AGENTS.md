@@ -35,7 +35,7 @@ Single-process MCP server over stdio. One SQLite connection (WAL mode, `max_open
 Core pipeline per tool call:
 
 1. Parse tool arguments from `mcp.CallToolRequest`
-2. Embed query text via Ollama HTTP API (`/api/embeddings`) — 768-dim float32 vectors
+2. Embed query text via Ollama HTTP API (`/api/embeddings`) — dimension depends on model
 3. Execute SQL (profile read, fragment/episode search/insert, profile upsert)
 4. Marshal results to JSON text and return via `mcp.NewToolResultText` or `mcp.NewToolResultError`
 5. Optional: log call to append-only JSON file (`AGENT_MEMORY_LOG`)
@@ -115,7 +115,7 @@ Profile content is a JSON object mapping section names to text. `UpsertProfileSe
 
 1. Add to `internal/vec/cosine.go` if general-purpose.
 2. Keep functions pure (no side effects, no DB access).
-3. Document dimension assumptions (currently 768 float32).
+3. Document dimension assumptions — dimension is model-dependent, not hardcoded.
 
 ## Development Commands
 
@@ -157,7 +157,7 @@ All configuration is via environment variables. No config files.
 
 ## Integration Points
 
-- **Ollama** (`/api/embeddings`, `/api/generate`): Must be running locally. Model must be pulled before use. Assumes 768-dimensional float32 output. If model changes, verify dimension compatibility with `vec.Pack`/`Unpack` and schema BLOB size.
+- **Ollama** (`/api/embeddings`, `/api/generate`): Must be running locally. Model must be pulled before use. Embedding dimension is model-dependent (`nomic-embed-text` → 768, `qwen3-embedding` → 1024). If model changes, verify dimension compatibility with `vec.Pack`/`Unpack` and schema BLOB size — mixing dimensions in the same table will cause errors at search time.
 - **MCP client** (Zed, Claude Desktop, etc.): Server communicates over stdio. Tool names and descriptions are the contract.
 
 ## Important Notes

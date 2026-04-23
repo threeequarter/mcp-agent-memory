@@ -43,7 +43,7 @@ func initSchema(db *sql.DB) error {
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
 			domain      TEXT    NOT NULL,
 			content     TEXT    NOT NULL,
-			embedding   BLOB    NOT NULL,               -- float32 LE, 768 dims
+			embedding   BLOB    NOT NULL,               -- float32 LE, dims depend on model
 			created_at  TEXT    NOT NULL
 		);
 		CREATE INDEX IF NOT EXISTS idx_fragments_domain ON fragments(domain);

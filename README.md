@@ -190,7 +190,7 @@ CREATE TABLE fragments (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     domain      TEXT NOT NULL,
     content     TEXT NOT NULL,
-    embedding   BLOB NOT NULL,   -- float32 LE, 768 dims
+    embedding   BLOB NOT NULL,   -- float32 LE, dims depend on model
     created_at  TEXT NOT NULL
 );
 CREATE INDEX idx_fragments_domain ON fragments(domain);
@@ -206,7 +206,7 @@ CREATE TABLE episodes (
 CREATE INDEX idx_episodes_domain ON episodes(domain);
 ```
 
-Embeddings are stored as raw `BLOB` (float32 little-endian, 768 dimensions). Vector search is exact KNN.
+Embeddings are stored as raw `BLOB` (float32 little-endian). Dimension depends on the Ollama model (`nomic-embed-text` → 768, `qwen3-embedding` → 1024). Vector search is exact KNN.
 
 ## Project Structure
 
