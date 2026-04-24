@@ -18,7 +18,8 @@ Simple implementation of persistent semantic memory for AI agents. Provides stru
 | `memory_init` | Session start | User profile, agent profile, domain profile, and top-k relevant fragments + episodes |
 | `memory_search` | Mid-conversation when context is missing | Semantically matched fragments and episodes |
 | `memory_store` | On "remember this" or "save session" | Confirmation with stored ID |
-| `memory_update_profile` | On explicit request to update a profile section | Confirmation of update |
+| `profile_read` | Before replacing a section, to inspect current content | Full profile as JSON object |
+| `profile_replace_section` | On explicit request to rewrite a profile section | Confirmation with previous content of replaced section |
 | `memory_list_episodes` | When listing recent conversations without full content | Episode metadata (id, domain, title, date) |
 
 ## Quick Start
@@ -83,7 +84,7 @@ Environment variables (set via shell or MCP client config):
 }
 ```
 
-Verify by opening your MCP client and confirming `memory-mcp` appears as a connected context server with all 5 tools listed.
+Verify by opening your MCP client and confirming `memory-mcp` appears as a connected context server with all 6 tools listed.
 
 ## Integrating with Agent Prompts
 
@@ -94,27 +95,33 @@ This section explains how to configure an AI agent's system prompt to use the me
 Add this to your agent's system prompt, replacing `<DOMAIN>` with the relevant domain name:
 
 ```markdown
----
-
-🟦 MEMORY
-
 **Session start:** Call `memory_init` with `domain="<DOMAIN>"` and
 `query=<first user message text>`. The returned `user_profile`,
 `agent_profile`, and domain-specific context are supplementary
 background — they enrich the already-assembled context, not replace it.
 
+Domain prompts override the `domain` parameter. When a domain prompt is
+active, use its specified domain instead of `"<DOMAIN>"`.
+
+**Domain selection:** If the user's request clearly maps to a specific
+domain, note it. Otherwise, `"<DOMAIN>"` is appropriate. New domains are
+created implicitly — calling `profile_replace_section` or `memory_store`
+with a previously unused domain name creates it automatically. No setup
+step is required. On a fresh database, `user` and `agent` profiles are
+seeded with placeholder sections to guide initial population.
+
 **Mid-conversation:** Call `memory_search` when context relevant to the
-current topic is clearly absent. Do not call speculatively on every turn.
+current topic appears to be missing. Do not call speculatively on every turn.
 
 **Storing — fragments:** On "remember this" or similar, call `memory_store`
-with `type="fragment"`, `domain="<DOMAIN>"`. Store a concise distilled version
-of the fact, decision, or preference — not raw conversation text.
+with `type="fragment"` and an appropriate domain. Store a concise distilled
+version of the fact, decision, or preference — not raw conversation text.
 
 **Storing — user insights:** When you discover an important preference,
 pattern, or constraint about the user that is not in the user profile, call
 `memory_store` with `type="fragment"`, `domain="user"`. Store a concise
 distilled observation — not raw conversation text. To correct or rewrite
-a profile section (e.g., user changed age or role), use `memory_update_profile`.
+a profile section (e.g., user changed age or role), use `profile_replace_section`.
 
 **Storing — agent reflection:** When you reflect on your own operation and
 identify a pattern that will help in future sessions, call `memory_store`
@@ -126,16 +133,16 @@ insight — do not attempt to reconstruct previous reflections.
 key topics, outcomes). Then call `memory_store` again for each notable
 fragment surfaced during the session.
 
-**Profile updates:** Call `memory_update_profile` for domain profiles only on
-explicit user request. Identify the appropriate section name and update only
-that section.
+**Profile read:** Call `profile_read` to inspect the current content of a
+domain profile mid-session. Use this before replacing a section with
+`profile_replace_section` so you know what already exists.
 
-**Vocabulary:** Check `agent_profile["Vocabulary Constraints"]` before responding.
-Apply all prohibited word and phrase rules from that section.
-
-**Conversation archive:** Use the format template from
-`agent_profile["Conversation Summary Format"]` when the user requests
-a session summary.
+**Profile replace:** Call `profile_replace_section` only to rewrite an entire
+section on explicit user request. This tool REPLACES the section content —
+any existing content is overwritten and lost. The response includes
+`previous_content` showing what was replaced. For incremental additions (new
+learnings, patterns, preferences), always use `memory_store` with
+`type="fragment"` instead.
 ```
 
 ### Domain naming convention
@@ -148,6 +155,17 @@ Use short, lowercase domain names that map to the agent's area of expertise:
 | `agent` | Agent self-reflection and behavioral configuration |
 | `code` | Programming, tooling, development practices |
 | `architect` | System design, microservices, compliance |
+
+New domains are created implicitly. Calling `profile_replace_section` with a previously unused domain name inserts a new row. Calling `memory_store` with a new domain creates fragments in that domain without requiring a profile. No setup step or registration is needed.
+
+On a fresh database, `user` and `agent` profiles are automatically seeded with placeholder sections to guide initial population:
+
+| Profile | Default Sections |
+|---------|-----------------|
+| `user` | Identity, Communication Style, Domain Focus |
+| `agent` | Behavioral Boundaries, Communication Structure Constraints, Vocabulary Constraints |
+
+Placeholder values are short descriptions (e.g., `"Name, age, profession, key interests."` for Identity). The agent replaces them with actual content via `profile_replace_section` as it learns about the user.
 
 ### What `memory_init` returns
 
@@ -168,12 +186,20 @@ Use short, lowercase domain names that map to the agent's area of expertise:
 - **Episodes** include full context/topics/outcomes content.
 - `user_fragments` and `agent_fragments` provide cross-domain context (user preferences and agent self-reflections relevant to the current topic).
 
-### Example: updating a profile
+### Example: reading a profile
 
 ```
-memory_update_profile(domain="user", section="Communication Style",
+profile_read(domain="user")
+```
+
+### Example: replacing a profile section
+
+```
+profile_replace_section(domain="user", section="Communication Style",
   content="Evidence-based, direct, no AI filler words, tables over lists, conclusions first")
 ```
+
+The response includes `previous_content` showing what was replaced, so you can verify no data was lost.
 
 ## Database Schema
 
@@ -205,6 +231,10 @@ CREATE TABLE episodes (
 );
 CREATE INDEX idx_episodes_domain ON episodes(domain);
 ```
+
+### Bootstrapping
+
+When the database is empty (0 rows in the `profile` table), `seedDefaults` automatically inserts starter `user` and `agent` profiles with placeholder sections. This gives the agent structure to fill in immediately, rather than starting with a blank slate where it doesn't know what sections exist. Seeding runs once — if any profile data exists, no defaults are inserted.
 
 Embeddings are stored as raw `BLOB` (float32 little-endian). Dimension depends on the Ollama model (`nomic-embed-text` → 768, `qwen3-embedding` → 1024). Vector search is exact KNN.
 

@@ -25,17 +25,21 @@ func GetProfile(ctx context.Context, db *sql.DB,
 	return result, json.Unmarshal([]byte(content), &result)
 }
 
+// UpsertProfileSection replaces one section of a domain profile.
+// It returns the previous content of that section (empty string if the
+// section did not exist) so callers can report what was replaced.
 func UpsertProfileSection(ctx context.Context, db *sql.DB,
-	domain, section, content string) error {
+	domain, section, content string) (string, error) {
 
 	existing, err := GetProfile(ctx, db, domain)
 	if err != nil {
-		return err
+		return "", err
 	}
+	previous := existing[section]
 	existing[section] = content
 	b, err := json.Marshal(existing)
 	if err != nil {
-		return err
+		return previous, err
 	}
 	_, err = db.ExecContext(ctx, `
 		INSERT INTO profile(domain, content, updated_at) VALUES(?, ?, ?)
@@ -44,5 +48,5 @@ func UpsertProfileSection(ctx context.Context, db *sql.DB,
 			updated_at = excluded.updated_at`,
 		domain, string(b), time.Now().UTC().Format(time.RFC3339),
 	)
-	return err
+	return previous, err
 }

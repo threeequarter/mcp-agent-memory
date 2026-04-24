@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-MCP Memory Server — a persistent memory server for AI agents. Stores facts, decisions, conversation summaries, and domain profiles in SQLite with vector similarity search. Exposes 5 MCP tools over stdio for semantic storage and retrieval.
+MCP Memory Server — a persistent memory server for AI agents. Stores facts, decisions, conversation summaries, and domain profiles in SQLite with vector similarity search. Exposes 6 MCP tools over stdio for semantic storage and retrieval.
 
 System context: runs as a Zed context server. Ollama provides embeddings locally. SQLite stores all data in a single file. No external services beyond Ollama on localhost.
 
@@ -12,7 +12,7 @@ System context: runs as a Zed context server. Ollama provides embeddings locally
 mcp-agent-memory/
 ├── cmd/
 │   └── server/
-│       └── main.go            # MCP server entry point (5 tools)
+│       └── main.go            # MCP server entry point (6 tools)
 ├── internal/
 │   ├── db/
 │   │   ├── db.go              # SQLite connection, schema init, DBPath()
@@ -36,7 +36,7 @@ Core pipeline per tool call:
 
 1. Parse tool arguments from `mcp.CallToolRequest`
 2. Embed query text via Ollama HTTP API (`/api/embeddings`) — dimension depends on model
-3. Execute SQL (profile read, fragment/episode search/insert, profile upsert)
+3. Execute SQL (profile read, fragment/episode search/insert, profile replace)
 4. Marshal results to JSON text and return via `mcp.NewToolResultText` or `mcp.NewToolResultError`
 5. Optional: log call to append-only JSON file (`AGENT_MEMORY_LOG`)
 
@@ -50,7 +50,9 @@ Data model:
 | `fragments` | Distilled facts/decisions | `id`, `domain`, `content`, `embedding` BLOB, `created_at` |
 | `episodes` | Conversation summaries | `id`, `domain`, `title`, `content`, `embedding` BLOB, `created_at` |
 
-Profile content is a JSON object mapping section names to text. `UpsertProfileSection` reads existing JSON, updates one key, marshals back, and does `INSERT ... ON CONFLICT(domain) DO UPDATE`.
+Profile content is a JSON object mapping section names to text. `UpsertProfileSection` reads existing JSON, updates one key, marshals back, and does `INSERT ... ON CONFLICT(domain) DO UPDATE`. It returns the previous content of the replaced section (empty string if the section was new) so callers can report what was overwritten.
+
+Domain creation is implicit. Calling `UpsertProfileSection` or `InsertFragment`/`InsertEpisode` with a previously unused domain name creates it automatically — no registration or setup step is required. On a fresh database, `seedDefaults` (called from `Open`) inserts starter `user` and `agent` profiles with placeholder sections. Seeding runs only when the profile table is empty (0 rows).
 
 ## Code Conventions
 
@@ -86,6 +88,7 @@ Profile content is a JSON object mapping section names to text. `UpsertProfileSe
 |---|---|---|
 | `internal/db/db.go:Open(path)` | Opens SQLite with WAL + schema init | Any new entry point needing DB |
 | `internal/db/db.go:DBPath()` | Resolves DB path from env or binary dir | Standard DB path resolution |
+| `internal/db/db.go:seedDefaults(db)` | Seeds empty database with `user` and `agent` profile templates | Called automatically from `Open`; no manual invocation needed |
 | `internal/vec/cosine.go:Pack(v)` | float32 slice → little-endian BLOB | Before storing embeddings |
 | `internal/vec/cosine.go:Unpack(b)` | BLOB → float32 slice | After reading embeddings from DB |
 | `internal/vec/cosine.go:Cosine(a, b)` | Cosine similarity between two float32 slices | Custom vector comparison |

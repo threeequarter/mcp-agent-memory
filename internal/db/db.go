@@ -2,8 +2,11 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -15,6 +18,9 @@ func Open(path string) (*sql.DB, error) {
 	}
 	db.SetMaxOpenConns(1) // sqlite: single writer
 	if err := initSchema(db); err != nil {
+		return nil, err
+	}
+	if err := seedDefaults(db); err != nil {
 		return nil, err
 	}
 	return db, nil
@@ -59,4 +65,50 @@ func initSchema(db *sql.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_episodes_domain ON episodes(domain);
 	`)
 	return err
+}
+
+// seedDefaults populates an empty database with starter user and agent
+// profiles. This gives a fresh installation structure that the agent can
+// immediately fill in via profile_replace_section, rather than starting
+// with a blank slate where it doesn't know what sections exist.
+func seedDefaults(db *sql.DB) error {
+	var count int
+	if err := db.QueryRow("SELECT COUNT(*) FROM profile").Scan(&count); err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	defaults := map[string]map[string]string{
+		"user": {
+			"Identity":            "Name, age, profession, key interests.",
+			"Communication Style": "Communication preferences: directness, formality, preferred formats.",
+			"Domain Focus":        "Domains and their focus areas.",
+		},
+		"agent": {
+			"Behavioral Boundaries":               "Rules and constraints for agent behavior.",
+			"Communication Structure Constraints": "Sentence structure, formatting, style preferences.",
+			"Vocabulary Constraints":              "Words and phrases to avoid or prefer.",
+		},
+	}
+
+	for domain, sections := range defaults {
+		b, err := json.Marshal(sections)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec(
+			"INSERT INTO profile(domain, content, updated_at) VALUES(?, ?, ?)",
+			domain, string(b), now,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	log.Printf("seeded default user and agent profiles")
+	return nil
 }

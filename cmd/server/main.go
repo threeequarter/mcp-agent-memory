@@ -274,18 +274,18 @@ func addTools(s *server.MCPServer, sqlDB *sql.DB, emb *embedder.Client) {
 	)
 
 	s.AddTool(
-		mcp.NewTool("memory_update_profile",
+		mcp.NewTool("profile_replace_section",
 			mcp.WithDescription(
-				"Update one named section of a domain profile. Replaces the entire "+
-					"section content — do not use for incremental additions. "+
-					"For domain='user': use to correct or rewrite profile sections "+
-					"(Identity, Communication Style, Domain Focus). For incremental "+
-					"discoveries about the user, use memory_store with type='fragment' "+
-					"and domain='user' instead. "+
-					"For domain='agent': use only to update reference sections "+
-					"(Vocabulary Constraints, Conversation Summary Format). For agent "+
-					"self-reflection, use memory_store with type='fragment' and "+
-					"domain='agent' instead. "+
+				"Replace one named section of a domain profile. This tool "+
+					"REPLACES the entire section content — any existing content in "+
+					"that section is overwritten and lost. The response includes the "+
+					"previous content so you can verify what was replaced. "+
+					"DO NOT use this tool to add new information to a section. "+
+					"Use memory_store with type='fragment' instead. "+
+					"For domain='user': use only to correct or rewrite an existing "+
+					"profile section (Identity, Communication Style, Domain Focus). "+
+					"For domain='agent': use only to rewrite reference sections "+
+					"(Vocabulary Constraints, Conversation Summary Format). "+
 					"For other domains: call only on explicit user request."),
 			mcp.WithString("domain", mcp.Required()),
 			mcp.WithString("section", mcp.Required()),
@@ -301,16 +301,45 @@ func addTools(s *server.MCPServer, sqlDB *sql.DB, emb *embedder.Client) {
 			section := req.GetString("section", "")
 			content := req.GetString("content", "")
 
-			if err := db.UpsertProfileSection(ctx, sqlDB, domain, section, content); err != nil {
+			previous, err := db.UpsertProfileSection(ctx, sqlDB, domain, section, content)
+			if err != nil {
 				result := mcp.NewToolResultError(fmt.Sprintf("upsert: %v", err))
-				logCall("memory_update_profile", args, result)
+				logCall("profile_replace_section", args, result)
 				return result, nil
 			}
 			b, _ := json.Marshal(map[string]any{
-				"updated": true, "domain": domain, "section": section,
+				"replaced": true, "domain": domain, "section": section, "previous_content": previous,
 			})
 			result := mcp.NewToolResultText(string(b))
-			logCall("memory_update_profile", args, result)
+			logCall("profile_replace_section", args, result)
+			return result, nil
+		},
+	)
+
+	s.AddTool(
+		mcp.NewTool("profile_read",
+			mcp.WithDescription(
+				"Read a domain profile. Returns all sections and their content. "+
+					"Use this to inspect current profile content before replacing "+
+					"a section with profile_replace_section."),
+			mcp.WithString("domain", mcp.Required(),
+				mcp.Description("Profile domain: 'user', 'agent', 'code', etc.")),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			args := map[string]any{
+				"domain": req.GetString("domain", ""),
+			}
+			domain := req.GetString("domain", "")
+
+			profile, err := db.GetProfile(ctx, sqlDB, domain)
+			if err != nil {
+				result := mcp.NewToolResultError(fmt.Sprintf("profile: %v", err))
+				logCall("profile_read", args, result)
+				return result, nil
+			}
+			b, _ := json.Marshal(profile)
+			result := mcp.NewToolResultText(string(b))
+			logCall("profile_read", args, result)
 			return result, nil
 		},
 	)
