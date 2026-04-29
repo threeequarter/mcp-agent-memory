@@ -280,13 +280,12 @@ func addTools(s *server.MCPServer, sqlDB *sql.DB, emb *embedder.Client) {
 					"REPLACES the entire section content — any existing content in "+
 					"that section is overwritten and lost. The response includes the "+
 					"previous content so you can verify what was replaced. "+
+					"The content parameter accepts plain strings, JSON arrays "+
+					"(e.g. [\"item1\",\"item2\"]), and JSON objects "+
+					"(e.g. {\"key\":\"value\"}). Structured values are stored as-is "+
+					"and returned intact by profile_read. "+
 					"DO NOT use this tool to add new information to a section. "+
-					"Use memory_store with type='fragment' instead. "+
-					"For domain='user': use only to correct or rewrite an existing "+
-					"profile section (Identity, Communication Style, Domain Focus). "+
-					"For domain='agent': use only to rewrite reference sections "+
-					"(Vocabulary Constraints, Conversation Summary Format). "+
-					"For other domains: call only on explicit user request."),
+					"Use memory_store with type='fragment' instead."),
 			mcp.WithString("domain", mcp.Required()),
 			mcp.WithString("section", mcp.Required()),
 			mcp.WithString("content", mcp.Required()),

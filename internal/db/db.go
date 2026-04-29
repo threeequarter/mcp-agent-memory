@@ -41,7 +41,7 @@ func initSchema(db *sql.DB) error {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS profile (
 			domain      TEXT PRIMARY KEY,
-			content     TEXT NOT NULL,  -- JSON object: section_name → text
+			content     TEXT NOT NULL,  -- JSON object: section_name → any (string, array, or object)
 			updated_at  TEXT NOT NULL
 		);
 
