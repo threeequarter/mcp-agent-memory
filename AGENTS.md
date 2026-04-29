@@ -52,7 +52,7 @@ Data model:
 
 Profile content is a JSON object mapping section names to values. Section values may be plain strings, JSON arrays (e.g. `["item1","item2"]`), or nested JSON objects (e.g. `{"key":"value"}`). `UpsertProfileSection` reads existing JSON, updates one key, marshals back, and does `INSERT ... ON CONFLICT(domain) DO UPDATE`. The `content` parameter is parsed as JSON — if it parses as an array or object, the structured value is stored; otherwise the raw string is stored as-is. Returns `nil` if the section was new, or the previous value (which may be a string, array, or object) so callers can report what was overwritten.
 
-Domain creation is implicit. Calling `UpsertProfileSection` or `InsertFragment`/`InsertEpisode` with a previously unused domain name creates it automatically — no registration or setup step is required. On a fresh database, `seedDefaults` (called from `Open`) inserts starter `user` and `agent` profiles with placeholder sections. Seeding runs only when the profile table is empty (0 rows).
+Domain creation is implicit. Calling `UpsertProfileSection` or `InsertFragment`/`InsertEpisode` with a previously unused domain name creates it automatically — no registration or setup step is required. On a fresh database, `seedDefaults` (called from `Open`) inserts starter `user` and `agent` profiles with placeholder sections using the structured format — objects for named fields (`Identity`, `Domain Focus`), arrays for item lists (`Preferred Communication Style`, `Communication Constraints`). This demonstrates the expected shape so the agent knows how to populate sections. Seeding runs only when the profile table is empty (0 rows).
 
 ## Code Conventions
 

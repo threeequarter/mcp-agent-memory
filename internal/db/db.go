@@ -82,16 +82,33 @@ func seedDefaults(db *sql.DB) error {
 
 	now := time.Now().UTC().Format(time.RFC3339)
 
-	defaults := map[string]map[string]string{
+	defaults := map[string]map[string]any{
 		"user": {
-			"Identity":            "Name, age, profession, key interests.",
-			"Communication Style": "Communication preferences: directness, formality, preferred formats.",
-			"Domain Focus":        "Domains and their focus areas.",
+			"Identity": map[string]any{
+				"name":       "Your name",
+				"age":        "Your age",
+				"profession": "Your profession",
+				"interests":  "Your key interests",
+			},
+			"Preferred Communication Style": []any{
+				"Communication preference 1",
+				"Communication preference 2",
+			},
+			"Domain Focus": map[string]any{
+				"code":    "Languages, frameworks, tools",
+				"history": "Historical periods and topics",
+			},
 		},
 		"agent": {
-			"Behavioral Boundaries":               "Rules and constraints for agent behavior.",
-			"Communication Structure Constraints": "Sentence structure, formatting, style preferences.",
-			"Vocabulary Constraints":              "Words and phrases to avoid or prefer.",
+			"Approach & Patterns": map[string]any{
+				"Using Memories": []any{
+					"Your memories provide useful information about your past work and interactions with the user, treat them with attention and respect",
+				},
+			},
+			"Communication Constraints": []any{
+				"Communication rule 1",
+				"Communication rule 2",
+			},
 		},
 	}
 
